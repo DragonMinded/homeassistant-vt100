@@ -8,6 +8,7 @@ from typing import Optional
 from api import HomeAssistant
 from config import Config
 from monitor import monitoring_thread
+from render import Renderer, SettingAction, ExitAction
 from vtpy import Terminal, TerminalException
 
 
@@ -37,14 +38,22 @@ def main(config: Config) -> None:
             "Expected configuration file to include Home Assistant URI and API Token!"
         )
 
-    hass = HomeAssistant(config.homeassistant_uri, config.homeassistant_token)
-    entities = hass.getEntities()
     exiting = False
     while not exiting:
+        hass = HomeAssistant(config.homeassistant_uri, config.homeassistant_token)
         terminal = spawnTerminal(config.terminal_port, config.terminal_baud)
+        renderer = Renderer(hass, terminal)
+        renderer.draw()
 
         try:
+            last_poll = time.time()
+
             while not exiting:
+                # Poll for updates from home assistant.
+                if (time.time() - last_poll) > 1.0:
+                    renderer.refresh()
+                    last_poll = time.time()
+
                 # Grab input, de-duplicate held down up/down presses so they don't queue up.
                 # This can cause the entire message loop to desync as we pile up requests to
                 # scroll the screen, ultimately leading in rendering issues and a crash.
@@ -53,7 +62,35 @@ def main(config: Config) -> None:
                     while inputVal == terminal.peekInput():
                         terminal.recvInput()
 
-            print("*")
+                if inputVal:
+                    action = renderer.processInput(inputVal)
+                    if isinstance(action, SettingAction):
+                        if action.setting in {"cols", "columns"}:
+                            if action.value not in {"80", "132"}:
+                                renderer.displayError(
+                                    f"Unrecognized column setting {action.value}"
+                                )
+                            elif action.value == "80":
+                                if terminal.columns != 80:
+                                    terminal.set80Columns()
+                                    renderer.clearInput()
+                                    renderer.draw()
+                                else:
+                                    renderer.clearInput()
+                            elif action.value == "132":
+                                if terminal.columns != 132:
+                                    terminal.set132Columns()
+                                    renderer.clearInput()
+                                    renderer.draw()
+                                else:
+                                    renderer.clearInput()
+                        else:
+                            renderer.displayError(
+                                f"Unrecognized setting {action.setting}"
+                            )
+                    elif isinstance(action, ExitAction):
+                        print("Got request to end session!")
+                        exiting = True
 
         except TerminalException:
             # Terminal went away mid-transaction.
