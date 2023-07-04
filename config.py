@@ -1,5 +1,11 @@
 import yaml
-from typing import Optional
+from typing import List, Optional
+
+
+class Page:
+    def __init__(self, name: str, entities: List[str]) -> None:
+        self.name = name
+        self.entities = entities
 
 
 class Config:
@@ -26,3 +32,16 @@ class Config:
             terminal = yamlfile.get("terminal", {})
             self.terminal_port: str = terminal.get("port", "/dev/ttyUSB0")
             self.terminal_baud: int = int(terminal.get("baud", "9600"))
+
+            # Layout configuration
+            self.layout: List[Page] = []
+
+            layout = yamlfile.get("layout", [])
+            for index, entry in enumerate(layout):
+                name = entry.get("name", f"Tab {index + 1}")
+                page = Page(name, [])
+
+                for entity in entry.get("entities") or []:
+                    page.entities.append(entity)
+
+                self.layout.append(page)

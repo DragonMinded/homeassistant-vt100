@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Dict, List, Optional
 
-from api import HomeAssistant
+from api import HomeAssistant, Entity, SwitchEntity
+from config import Page
 from vtpy import Terminal
 
 
@@ -18,8 +19,70 @@ class SettingAction(Action):
         self.value = value
 
 
+class Object:
+    def __init__(self, entity: Entity) -> None:
+        self.entity: Entity = entity
+
+    @property
+    def dirty(self) -> bool:
+        return True
+
+    def markRendered(self) -> None:
+        pass
+
+    @property
+    def height(self) -> int:
+        return 1
+
+    def render(self, terminal: Terminal, width: int) -> None:
+        text = f"UNSUPPORTED ENTITY {self.entity.entity_id}"
+        text = text[:width]
+
+        terminal.sendText(text)
+
+
+class SwitchObject(Object):
+    def __init__(self, entity: SwitchEntity) -> None:
+        self.entity: SwitchEntity = entity
+        self.__dirty: bool = True
+        self.__lastState: Optional[bool] = entity.state
+
+    def markRendered(self) -> None:
+        self.__dirty = False
+        self.__lastState = self.entity.state
+
+    @property
+    def dirty(self) -> bool:
+        return self.__dirty or self.__lastState != self.entity.state
+
+    @property
+    def height(self) -> int:
+        return 1
+
+    def render(self, terminal: Terminal, width: int) -> None:
+        state = (
+            "UNK"
+            if self.entity.state is None
+            else ("ON " if self.entity.state else "OFF")
+        )
+
+        terminal.sendCommand(Terminal.SET_NORMAL)
+        terminal.sendCommand(Terminal.SET_BOLD)
+        terminal.sendText(f" {state} ")
+        terminal.sendCommand(Terminal.SET_NORMAL)
+
+        width -= 5
+        if width <= 0:
+            return
+
+        text = self.entity.name[:width]
+        terminal.sendText(text)
+
+
 class Renderer:
-    def __init__(self, api: HomeAssistant, terminal: Terminal) -> None:
+    def __init__(
+        self, pages: List[Page], api: HomeAssistant, terminal: Terminal
+    ) -> None:
         self.api = api
         self.terminal = terminal
         self.entities = api.getEntities() or []
@@ -30,6 +93,26 @@ class Renderer:
         self.terminal.moveCursor(self.terminal.rows, 1)
         self.lastError = ""
         self.input = ""
+
+        # Set up tabs.
+        self.pages = pages
+        self.currentPage = 0
+
+        # Set up tracking entities for each type of home assistant entity.
+        self.objects: List[List[Object]] = []
+        keyed_entities: Dict[str, Entity] = {e.entity_id: e for e in self.entities}
+
+        for page in pages:
+            objlist: List[Object] = []
+            for entity in page.entities:
+                if entity in keyed_entities:
+                    backing_entity = keyed_entities[entity]
+                    if isinstance(backing_entity, SwitchEntity):
+                        objlist.append(SwitchObject(backing_entity))
+                    else:
+                        objlist.append(Object(backing_entity))
+
+            self.objects.append(objlist)
 
     def refresh(self) -> None:
         self.api.refreshEntities(self.entities)
@@ -67,15 +150,75 @@ class Renderer:
 
             # Now, render the rest of the page.
             self.terminal.sendCommand(Terminal.MOVE_CURSOR_ORIGIN)
-            self.terminal.setAutoWrap()
             self.terminal.sendCommand(Terminal.SET_NORMAL)
             self.terminal.sendCommand(Terminal.SET_BOLD)
             self.terminal.sendText("Home Assistant Dashboard")
             self.terminal.sendCommand(Terminal.SET_NORMAL)
-            self.terminal.clearAutoWrap()
+
+            self.__renderTabs()
 
             # Move cursor to input that we previously typed.
             self.terminal.sendCommand(Terminal.RESTORE_CURSOR)
+        else:
+            # If we have input, we need to remember the cursor position.
+            self.terminal.sendCommand(Terminal.SAVE_CURSOR)
+            self.__renderPage(False)
+            self.terminal.sendCommand(Terminal.RESTORE_CURSOR)
+
+    def __renderTabs(self) -> None:
+        self.terminal.moveCursor(2, 1)
+
+        # First, render the tab heading.
+        spaced = False
+        for index, page in enumerate(self.pages):
+            self.terminal.sendCommand(Terminal.SET_NORMAL)
+
+            if spaced:
+                self.terminal.sendText(" ")
+            spaced = True
+
+            self.terminal.sendCommand(Terminal.SET_REVERSE)
+            if index == self.currentPage:
+                self.terminal.sendCommand(Terminal.SET_BOLD)
+
+            self.terminal.sendText(f" {page.name} ")
+
+        # Now, render the entries themselves, treating them all as dirty.
+        self.__renderPage(True)
+
+    def __renderPage(self, allDirty: bool) -> None:
+        cols = 2 if self.terminal.columns == 80 else 3
+        curCol = -1
+        curRow = 4
+
+        maxHeight = 0
+        width = self.terminal.columns // cols
+
+        if allDirty:
+            # Need to wipe each row.
+            for row in range(4, self.terminal.rows - 2):
+                self.terminal.moveCursor(row, 1)
+                self.terminal.sendCommand(Terminal.CLEAR_LINE)
+
+        for obj in self.objects[self.currentPage]:
+            # Calculate position for this object.
+            curCol += 1
+            if curCol >= cols:
+                curCol = 0
+                curRow += maxHeight
+                maxHeight = 0
+
+            # Calculate height of this object.
+            maxHeight = max(obj.height, maxHeight)
+
+            # Calculate location of this object.
+            row = curRow
+            col = (width * curCol) + 1
+
+            if allDirty or obj.dirty:
+                self.terminal.moveCursor(row, col)
+                obj.render(self.terminal, width)
+                obj.markRendered()
 
     def clearInput(self) -> None:
         # Clear error display.
@@ -190,6 +333,28 @@ class Renderer:
                         value = None
 
                     return SettingAction(setting, value)
+            elif actual in {"n", "next"}:
+                if self.currentPage < (len(self.pages) - 1):
+                    self.currentPage += 1
+
+                    self.terminal.sendCommand(Terminal.SAVE_CURSOR)
+                    self.__renderTabs()
+                    self.terminal.sendCommand(Terminal.RESTORE_CURSOR)
+
+                self.clearInput()
+
+                return None
+            elif actual in {"p", "prev", "previous"}:
+                if self.currentPage > 0:
+                    self.currentPage -= 1
+
+                    self.terminal.sendCommand(Terminal.SAVE_CURSOR)
+                    self.__renderTabs()
+                    self.terminal.sendCommand(Terminal.RESTORE_CURSOR)
+
+                self.clearInput()
+
+                return None
             else:
                 self.displayError(f"Unrecognized command {actual}")
         else:

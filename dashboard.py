@@ -42,7 +42,7 @@ def main(config: Config) -> None:
     while not exiting:
         hass = HomeAssistant(config.homeassistant_uri, config.homeassistant_token)
         terminal = spawnTerminal(config.terminal_port, config.terminal_baud)
-        renderer = Renderer(hass, terminal)
+        renderer = Renderer(config.layout, hass, terminal)
         renderer.draw()
 
         try:
@@ -53,6 +53,9 @@ def main(config: Config) -> None:
                 if (time.time() - last_poll) > 1.0:
                     renderer.refresh()
                     last_poll = time.time()
+
+                # Refresh for updates from home assistant.
+                renderer.draw()
 
                 # Grab input, de-duplicate held down up/down presses so they don't queue up.
                 # This can cause the entire message loop to desync as we pile up requests to
