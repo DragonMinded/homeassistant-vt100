@@ -1,0 +1,6 @@
+vtpy @ git+https://github.com/DragonMinded/vtpy.git
+requests
+types-requests
+mypy
+flake8
+black

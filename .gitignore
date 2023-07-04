@@ -1,0 +1,13 @@
+.hg/
+.hgignore
+*.swp
+*.swo
+.mypy_cache/
+__pycache__/
+*.yaml
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+*.egg
