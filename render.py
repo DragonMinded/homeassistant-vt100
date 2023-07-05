@@ -361,12 +361,6 @@ class Renderer:
 
         self.terminal.sendCommand(Terminal.SET_NORMAL)
 
-        if allDirty:
-            # Need to wipe each row.
-            for row in range(5, self.terminal.rows - 2):
-                self.terminal.moveCursor(row, 1)
-                self.terminal.sendCommand(Terminal.CLEAR_LINE)
-
         for obj in self.objects[self.currentPage]:
             # Calculate position for this object.
             curCol += 1
@@ -374,11 +368,17 @@ class Renderer:
                 curCol = 0
                 curRow += maxHeight
                 maxHeight = 0
+                if allDirty:
+                    self.terminal.moveCursor(curRow, 1)
+                    self.terminal.sendCommand(Terminal.CLEAR_LINE)
 
             if curCol != 0 and obj.full:
                 curCol = 0
                 curRow += maxHeight
                 maxHeight = 0
+                if allDirty:
+                    self.terminal.moveCursor(curRow, 1)
+                    self.terminal.sendCommand(Terminal.CLEAR_LINE)
 
             # Calculate width/height of this object.
             maxHeight = max(obj.height, maxHeight)
@@ -396,6 +396,13 @@ class Renderer:
             # Move to the end of the column if this was a full width object.
             if obj.full:
                 curCol = cols - 1
+
+        if allDirty:
+            # Need to wipe each row.
+            curRow += maxHeight
+            for row in range(curRow + 1 if curCol >= 0 else curRow, self.terminal.rows - 2):
+                self.terminal.moveCursor(row, 1)
+                self.terminal.sendCommand(Terminal.CLEAR_LINE)
 
     def __selection(self) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         prevobj = -1
