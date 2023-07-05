@@ -25,6 +25,10 @@ class Object:
         self.__dirty = True
 
     @property
+    def name(self) -> str:
+        return self.entity.entity_id
+
+    @property
     def dirty(self) -> bool:
         return self.__dirty
 
@@ -64,6 +68,10 @@ class SwitchObject(Object):
         self.__selected: bool = False
         self.__dirty: bool = True
         self.__lastState: Optional[bool] = entity.state
+
+    @property
+    def name(self) -> str:
+        return self.entity.name
 
     @property
     def dirty(self) -> bool:
@@ -420,6 +428,37 @@ class Renderer:
                         value = None
 
                     return SettingAction(setting, value)
+            elif actual == "toggle" or actual.startswith("toggle "):
+                if " " not in actual:
+                    self.displayError("No switch specified!")
+                else:
+                    _, setting = actual.split(" ", 1)
+                    setting = setting.strip().lower()
+
+                    # See if we can find by exact match
+                    for obj in self.objects[self.currentPage]:
+                        if not obj.selectable:
+                            continue
+
+                        if obj.name.lower() == setting:
+                            obj.toggle()
+                            self.clearError()
+                            self.clearInput()
+                            break
+                    else:
+                        # We didn't, see if we can filter down to a single item by substring.
+                        objs = [
+                            o
+                            for o in self.objects[self.currentPage]
+                            if (o.selectable and (setting in o.name.lower()))
+                        ]
+                        if len(objs) == 1:
+                            objs[0].toggle()
+                            self.clearError()
+                            self.clearInput()
+                        else:
+                            self.displayError("Unrecognized switch!")
+                return None
             elif actual in {"n", "next"}:
                 if self.currentPage < (len(self.pages) - 1):
                     self.currentPage += 1
