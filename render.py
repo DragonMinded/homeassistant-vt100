@@ -81,8 +81,9 @@ class SwitchObject(Object):
 
 class Renderer:
     def __init__(
-        self, pages: List[Page], api: HomeAssistant, terminal: Terminal
+        self, name: str, pages: List[Page], api: HomeAssistant, terminal: Terminal
     ) -> None:
+        self.name = name
         self.api = api
         self.terminal = terminal
         self.entities = api.getEntities() or []
@@ -152,8 +153,13 @@ class Renderer:
             self.terminal.sendCommand(Terminal.MOVE_CURSOR_ORIGIN)
             self.terminal.sendCommand(Terminal.SET_NORMAL)
             self.terminal.sendCommand(Terminal.SET_BOLD)
-            self.terminal.sendText("Home Assistant Dashboard")
+            self.terminal.sendText(self.name)
             self.terminal.sendCommand(Terminal.SET_NORMAL)
+
+            self.terminal.moveCursor(2, 1)
+            self.terminal.sendText("\u2500" * self.terminal.columns)
+            self.terminal.moveCursor(4, 1)
+            self.terminal.sendText("\u2500" * self.terminal.columns)
 
             self.__renderTabs()
 
@@ -166,7 +172,7 @@ class Renderer:
             self.terminal.sendCommand(Terminal.RESTORE_CURSOR)
 
     def __renderTabs(self) -> None:
-        self.terminal.moveCursor(2, 1)
+        self.terminal.moveCursor(3, 1)
 
         # First, render the tab heading.
         spaced = False
@@ -189,14 +195,14 @@ class Renderer:
     def __renderPage(self, allDirty: bool) -> None:
         cols = 2 if self.terminal.columns == 80 else 3
         curCol = -1
-        curRow = 4
+        curRow = 5
 
         maxHeight = 0
         width = self.terminal.columns // cols
 
         if allDirty:
             # Need to wipe each row.
-            for row in range(4, self.terminal.rows - 2):
+            for row in range(5, self.terminal.rows - 2):
                 self.terminal.moveCursor(row, 1)
                 self.terminal.sendCommand(Terminal.CLEAR_LINE)
 

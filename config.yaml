@@ -7,6 +7,8 @@ homeassistant:
 terminal:
   port: /dev/ttyUSB0
   baud: 9600
+general:
+  name: Home Assistant Dashboard
 layout:
   - name: Tab 1
     entities:

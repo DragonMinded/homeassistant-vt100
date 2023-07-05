@@ -33,6 +33,10 @@ class Config:
             self.terminal_port: str = terminal.get("port", "/dev/ttyUSB0")
             self.terminal_baud: int = int(terminal.get("baud", "9600"))
 
+            # General configuration
+            general = yamlfile.get("general", {})
+            self.dashboard_name: Optional[str] = general.get("name")
+
             # Layout configuration
             self.layout: List[Page] = []
 
