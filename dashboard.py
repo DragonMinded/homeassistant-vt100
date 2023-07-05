@@ -42,7 +42,12 @@ def main(config: Config) -> None:
     while not exiting:
         hass = HomeAssistant(config.homeassistant_uri, config.homeassistant_token)
         terminal = spawnTerminal(config.terminal_port, config.terminal_baud)
-        renderer = Renderer(config.dashboard_name or "Home Assistant Dashboard", config.layout, hass, terminal)
+        renderer = Renderer(
+            config.dashboard_name or "Home Assistant Dashboard",
+            config.layout,
+            hass,
+            terminal,
+        )
         renderer.draw()
 
         try:

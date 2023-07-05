@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from api import HomeAssistant, Entity, SwitchEntity
 from config import Page
@@ -22,17 +22,34 @@ class SettingAction(Action):
 class Object:
     def __init__(self, entity: Entity) -> None:
         self.entity: Entity = entity
+        self.__dirty = True
 
     @property
     def dirty(self) -> bool:
-        return True
+        return self.__dirty
 
-    def markRendered(self) -> None:
-        pass
+    @dirty.setter
+    def dirty(self, newval: bool) -> None:
+        self.__dirty = newval
 
     @property
     def height(self) -> int:
         return 1
+
+    @property
+    def selectable(self) -> bool:
+        return False
+
+    @property
+    def selected(self) -> bool:
+        return False
+
+    @selected.setter
+    def selected(self, newval: bool) -> None:
+        pass
+
+    def toggle(self) -> None:
+        pass
 
     def render(self, terminal: Terminal, width: int) -> None:
         text = f"UNSUPPORTED ENTITY {self.entity.entity_id}"
@@ -44,20 +61,39 @@ class Object:
 class SwitchObject(Object):
     def __init__(self, entity: SwitchEntity) -> None:
         self.entity: SwitchEntity = entity
+        self.__selected: bool = False
         self.__dirty: bool = True
         self.__lastState: Optional[bool] = entity.state
-
-    def markRendered(self) -> None:
-        self.__dirty = False
-        self.__lastState = self.entity.state
 
     @property
     def dirty(self) -> bool:
         return self.__dirty or self.__lastState != self.entity.state
 
+    @dirty.setter
+    def dirty(self, newval: bool) -> None:
+        self.__dirty = newval
+        self.__lastState = self.entity.state
+
     @property
     def height(self) -> int:
         return 1
+
+    @property
+    def selectable(self) -> bool:
+        return True
+
+    @property
+    def selected(self) -> bool:
+        return self.__selected
+
+    @selected.setter
+    def selected(self, newval: bool) -> None:
+        if newval != self.__selected:
+            self.__dirty = True
+        self.__selected = newval
+
+    def toggle(self) -> None:
+        self.entity.state = not self.entity.state
 
     def render(self, terminal: Terminal, width: int) -> None:
         state = (
@@ -75,7 +111,10 @@ class SwitchObject(Object):
         if width <= 0:
             return
 
-        text = self.entity.name[:width]
+        selopen = "[" if self.__selected else " "
+        selclose = "]" if self.__selected else " "
+
+        text = (f"{selopen}{self.entity.name}{selclose}")[:width]
         terminal.sendText(text)
 
 
@@ -112,6 +151,11 @@ class Renderer:
                         objlist.append(SwitchObject(backing_entity))
                     else:
                         objlist.append(Object(backing_entity))
+
+            for o in objlist:
+                if o.selectable:
+                    o.selected = True
+                    break
 
             self.objects.append(objlist)
 
@@ -224,7 +268,33 @@ class Renderer:
             if allDirty or obj.dirty:
                 self.terminal.moveCursor(row, col)
                 obj.render(self.terminal, width)
-                obj.markRendered()
+                obj.dirty = False
+
+    def __selection(self) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+        prevobj = -1
+        curobj = -1
+        nextobj = -1
+
+        lastSeen = -1
+        for index, obj in enumerate(self.objects[self.currentPage]):
+            if obj.selectable:
+                if obj.selected:
+                    # This is the currently selected object!
+                    curobj = index
+                    prevobj = lastSeen
+                else:
+                    if curobj == -1:
+                        # If we haven't found the selected item, this could be the item before it.
+                        lastSeen = index
+                    elif nextobj == -1:
+                        # If we have found the selected item, the next item is the one we tab to next.
+                        nextobj = index
+
+        return (
+            None if prevobj == -1 else prevobj,
+            None if curobj == -1 else curobj,
+            None if nextobj == -1 else nextobj,
+        )
 
     def clearInput(self) -> None:
         # Clear error display.
@@ -268,11 +338,17 @@ class Renderer:
                 col += 1
                 self.terminal.moveCursor(row, col)
         elif inputVal == Terminal.UP:
-            # TODO: Move to previous element on screen.
-            pass
+            prevobj, curobj, nextobj = self.__selection()
+            if prevobj is not None:
+                if curobj is not None:
+                    self.objects[self.currentPage][curobj].selected = False
+                self.objects[self.currentPage][prevobj].selected = True
         elif inputVal == Terminal.DOWN:
-            # TODO: Move to next element on screen.
-            pass
+            prevobj, curobj, nextobj = self.__selection()
+            if nextobj is not None:
+                if curobj is not None:
+                    self.objects[self.currentPage][curobj].selected = False
+                self.objects[self.currentPage][nextobj].selected = True
         elif inputVal in {Terminal.BACKSPACE, Terminal.DELETE}:
             if self.input:
                 # Just subtract from input.
@@ -319,6 +395,11 @@ class Renderer:
             # Execute command.
             actual = self.input.strip()
             if not actual:
+                # This could be a selection request
+                _, cur, _ = self.__selection()
+                if cur is not None:
+                    self.objects[self.currentPage][cur].toggle()
+
                 return None
 
             if actual == "exit":

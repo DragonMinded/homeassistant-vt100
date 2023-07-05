@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 class Entity:
     def __init__(self, api: "HomeAssistant", entity_id: str) -> None:
-        self.__api = api
+        self.api = api
         self.entity_id = entity_id
 
     def _merge(self, other: "Entity") -> None:
@@ -33,8 +33,8 @@ class SwitchEntity(Entity):
 
     @state.setter
     def state(self, new_state: bool) -> None:
-        self.__api.setSwitchState(self.entity_id, new_state)
-        self.__state = self.__api.getSwitchState(self.entity_id)
+        self.api.setSwitchState(self.entity_id, new_state)
+        self.__state = self.api.getSwitchState(self.entity_id)
 
     def __repr__(self) -> str:
         return f"SwitchEntity({self.entity_id!r}, {self.name!r}, {self.__state!r})"
@@ -111,7 +111,7 @@ class HomeAssistant:
             return None
 
     def setSwitchState(self, entity: str, newstate: bool) -> None:
-        url = f"{self.uri}api/services/switch/turn_{'off' if newstate else 'on'}"
+        url = f"{self.uri}api/services/switch/turn_{'on' if newstate else 'off'}"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "content-type": "application/json",
