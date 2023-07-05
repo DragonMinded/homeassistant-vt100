@@ -45,6 +45,7 @@ def main(config: Config) -> None:
         renderer = Renderer(
             config.dashboard_name or "Home Assistant Dashboard",
             config.layout,
+            config.display_help,
             hass,
             terminal,
         )

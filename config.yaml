@@ -9,6 +9,7 @@ terminal:
   baud: 9600
 general:
   name: Home Assistant Dashboard
+  show_help: False
 layout:
   - name: Tab 1
     entities:

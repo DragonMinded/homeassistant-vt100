@@ -29,6 +29,10 @@ class Object:
         return self.entity.entity_id
 
     @property
+    def full(self) -> bool:
+        return False
+
+    @property
     def dirty(self) -> bool:
         return self.__dirty
 
@@ -62,6 +66,73 @@ class Object:
         terminal.sendText(text)
 
 
+class HelpObject:
+    def __init__(self) -> None:
+        self.__dirty = True
+        self.lines = [
+            "The following commands are available to use at any time:",
+            "",
+            "    prev",
+            "        Display the previous tab.",
+            "",
+            "    next",
+            "        Display the next tab.",
+            "",
+            "    toggle [SWITCH]",
+            "        Toggle a displayed switch by name.",
+            "",
+            "    help",
+            "        Display this help screen.",
+            "",
+            "    exit",
+            "        Exit out of the dashboard interface.",
+        ]
+
+    @property
+    def name(self) -> str:
+        return "help_virtual_object"
+
+    @property
+    def full(self) -> bool:
+        return True
+
+    @property
+    def dirty(self) -> bool:
+        return self.__dirty
+
+    @dirty.setter
+    def dirty(self, newval: bool) -> None:
+        self.__dirty = newval
+
+    @property
+    def height(self) -> int:
+        return len(self.lines)
+
+    @property
+    def selectable(self) -> bool:
+        return False
+
+    @property
+    def selected(self) -> bool:
+        return False
+
+    @selected.setter
+    def selected(self, newval: bool) -> None:
+        pass
+
+    def toggle(self) -> None:
+        pass
+
+    def render(self, terminal: Terminal, width: int) -> None:
+        row, col = terminal.fetchCursor()
+        for line in self.lines:
+            text = line[:width]
+
+            terminal.moveCursor(row, col)
+            terminal.sendText(text)
+            row += 1
+
+
 class SwitchObject(Object):
     def __init__(self, entity: SwitchEntity) -> None:
         self.entity: SwitchEntity = entity
@@ -72,6 +143,10 @@ class SwitchObject(Object):
     @property
     def name(self) -> str:
         return self.entity.name
+
+    @property
+    def full(self) -> bool:
+        return False
 
     @property
     def dirty(self) -> bool:
@@ -128,12 +203,18 @@ class SwitchObject(Object):
 
 class Renderer:
     def __init__(
-        self, name: str, pages: List[Page], api: HomeAssistant, terminal: Terminal
+        self,
+        name: str,
+        pages: List[Page],
+        show_help_tab: bool,
+        api: HomeAssistant,
+        terminal: Terminal,
     ) -> None:
         self.name = name
         self.api = api
         self.terminal = terminal
         self.entities = api.getEntities() or []
+        self.help_enabled = show_help_tab
         self.lastWidth = 0
         self.lastHeight = 0
 
@@ -166,6 +247,10 @@ class Renderer:
                     break
 
             self.objects.append(objlist)
+
+        if self.help_enabled:
+            self.pages.append(Page("Help", []))
+            self.objects.append([HelpObject()])
 
     def refresh(self) -> None:
         self.api.refreshEntities(self.entities)
@@ -252,6 +337,8 @@ class Renderer:
         maxHeight = 0
         width = self.terminal.columns // cols
 
+        self.terminal.sendCommand(Terminal.SET_NORMAL)
+
         if allDirty:
             # Need to wipe each row.
             for row in range(5, self.terminal.rows - 2):
@@ -266,8 +353,14 @@ class Renderer:
                 curRow += maxHeight
                 maxHeight = 0
 
-            # Calculate height of this object.
+            if curCol != 0 and obj.full:
+                curCol = 0
+                curRow += maxHeight
+                maxHeight = 0
+
+            # Calculate width/height of this object.
             maxHeight = max(obj.height, maxHeight)
+            actualWidth = self.terminal.columns if obj.full else width
 
             # Calculate location of this object.
             row = curRow
@@ -275,8 +368,12 @@ class Renderer:
 
             if allDirty or obj.dirty:
                 self.terminal.moveCursor(row, col)
-                obj.render(self.terminal, width)
+                obj.render(self.terminal, actualWidth)
                 obj.dirty = False
+
+            # Move to the end of the column if this was a full width object.
+            if obj.full:
+                curCol = cols - 1
 
     def __selection(self) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         prevobj = -1
@@ -481,6 +578,15 @@ class Renderer:
                 self.clearInput()
 
                 return None
+            elif actual == "help" and self.help_enabled:
+                if self.currentPage != (len(self.pages) - 1):
+                    self.currentPage = len(self.pages) - 1
+
+                    self.terminal.sendCommand(Terminal.SAVE_CURSOR)
+                    self.__renderTabs()
+                    self.terminal.sendCommand(Terminal.RESTORE_CURSOR)
+
+                self.clearInput()
             else:
                 self.displayError(f"Unrecognized command {actual}")
         else:

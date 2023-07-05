@@ -36,6 +36,7 @@ class Config:
             # General configuration
             general = yamlfile.get("general", {})
             self.dashboard_name: Optional[str] = general.get("name")
+            self.display_help: bool = general.get("show_help", False)
 
             # Layout configuration
             self.layout: List[Page] = []
