@@ -66,7 +66,7 @@ class Object:
         terminal.sendText(text)
 
 
-class HelpObject:
+class HelpObject(Object):
     def __init__(self) -> None:
         self.__dirty = True
         self.lines = [
@@ -97,31 +97,8 @@ class HelpObject:
         return True
 
     @property
-    def dirty(self) -> bool:
-        return self.__dirty
-
-    @dirty.setter
-    def dirty(self, newval: bool) -> None:
-        self.__dirty = newval
-
-    @property
     def height(self) -> int:
         return len(self.lines)
-
-    @property
-    def selectable(self) -> bool:
-        return False
-
-    @property
-    def selected(self) -> bool:
-        return False
-
-    @selected.setter
-    def selected(self, newval: bool) -> None:
-        pass
-
-    def toggle(self) -> None:
-        pass
 
     def render(self, terminal: Terminal, width: int) -> None:
         row, col = terminal.fetchCursor()
@@ -131,6 +108,47 @@ class HelpObject:
             terminal.moveCursor(row, col)
             terminal.sendText(text)
             row += 1
+
+
+class HorizontalRuleObject(Object):
+    def __init__(self) -> None:
+        self.__dirty = True
+
+    @property
+    def name(self) -> str:
+        return "hr_virtual_object"
+
+    @property
+    def full(self) -> bool:
+        return True
+
+    @property
+    def height(self) -> int:
+        return 1
+
+    def render(self, terminal: Terminal, width: int) -> None:
+        terminal.sendText("\u2500" * width)
+
+
+class LabelObject(Object):
+    def __init__(self, caption: str) -> None:
+        self.__dirty = True
+        self.caption = caption
+
+    @property
+    def name(self) -> str:
+        return "label_virtual_object"
+
+    @property
+    def full(self) -> bool:
+        return True
+
+    @property
+    def height(self) -> int:
+        return 1
+
+    def render(self, terminal: Terminal, width: int) -> None:
+        terminal.sendText(self.caption[:width])
 
 
 class SwitchObject(Object):
@@ -234,7 +252,11 @@ class Renderer:
         for page in pages:
             objlist: List[Object] = []
             for entity in page.entities:
-                if entity in keyed_entities:
+                if entity == "<hr>":
+                    objlist.append(HorizontalRuleObject())
+                elif entity[:6] == "<label" and entity[-1:] == ">":
+                    objlist.append(LabelObject(entity[6:-1].strip()))
+                elif entity in keyed_entities:
                     backing_entity = keyed_entities[entity]
                     if isinstance(backing_entity, SwitchEntity):
                         objlist.append(SwitchObject(backing_entity))
