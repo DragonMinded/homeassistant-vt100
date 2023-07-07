@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Tuple
 
-from api import HomeAssistant, Entity, SwitchEntity
+from api import HomeAssistant, Entity, SwitchEntity, SensorEntity
 from config import Page
 from vtpy import Terminal
 
@@ -41,10 +41,6 @@ class Object:
         self.__dirty = newval
 
     @property
-    def height(self) -> int:
-        return 1
-
-    @property
     def selectable(self) -> bool:
         return False
 
@@ -64,6 +60,9 @@ class Object:
         text = text[:width]
 
         terminal.sendText(text)
+
+    def calculate(self, terminal: Terminal, width: int) -> int:
+        return 1
 
 
 class HelpObject(Object):
@@ -96,10 +95,6 @@ class HelpObject(Object):
     def full(self) -> bool:
         return True
 
-    @property
-    def height(self) -> int:
-        return len(self.lines)
-
     def render(self, terminal: Terminal, width: int) -> None:
         row, col = terminal.fetchCursor()
         for line in self.lines:
@@ -108,6 +103,9 @@ class HelpObject(Object):
             terminal.moveCursor(row, col)
             terminal.sendText(text)
             row += 1
+
+    def calculate(self, terminal: Terminal, width: int) -> int:
+        return len(self.lines)
 
 
 class HorizontalRuleObject(Object):
@@ -122,12 +120,11 @@ class HorizontalRuleObject(Object):
     def full(self) -> bool:
         return True
 
-    @property
-    def height(self) -> int:
-        return 1
-
     def render(self, terminal: Terminal, width: int) -> None:
         terminal.sendText("\u2500" * width)
+
+    def calculate(self, terminal: Terminal, width: int) -> int:
+        return 1
 
 
 class LabelObject(Object):
@@ -143,12 +140,11 @@ class LabelObject(Object):
     def full(self) -> bool:
         return True
 
-    @property
-    def height(self) -> int:
-        return 1
-
     def render(self, terminal: Terminal, width: int) -> None:
         terminal.sendText(self.caption[:width])
+
+    def calculate(self, terminal: Terminal, width: int) -> int:
+        return 1
 
 
 class SwitchObject(Object):
@@ -174,10 +170,6 @@ class SwitchObject(Object):
     def dirty(self, newval: bool) -> None:
         self.__dirty = newval
         self.__lastState = self.entity.state
-
-    @property
-    def height(self) -> int:
-        return 1
 
     @property
     def selectable(self) -> bool:
@@ -217,6 +209,69 @@ class SwitchObject(Object):
 
         text = (f"{selopen}{self.entity.name}{selclose}")[:width]
         terminal.sendText(text)
+
+    def calculate(self, terminal: Terminal, width: int) -> int:
+        return 1
+
+
+class SensorObject(Object):
+    def __init__(self, entity: SensorEntity) -> None:
+        self.entity: SensorEntity = entity
+        self.__dirty: bool = True
+        self.__lastState: Optional[str] = entity.state
+        self.__lastUnits: Optional[str] = entity.units
+
+    @property
+    def name(self) -> str:
+        return self.entity.name
+
+    @property
+    def full(self) -> bool:
+        return False
+
+    @property
+    def dirty(self) -> bool:
+        return (
+            self.__dirty
+            or self.__lastState != self.entity.state
+            or self.__lastUnits != self.entity.units
+        )
+
+    @dirty.setter
+    def dirty(self, newval: bool) -> None:
+        self.__dirty = newval
+        self.__lastState = self.entity.state
+        self.__lastUnits = self.entity.units
+
+    def render(self, terminal: Terminal, width: int) -> None:
+        row, col = terminal.fetchCursor()
+
+        state = "UNK" if self.entity.state is None else self.entity.state
+        state += f" {self.entity.units}" if self.entity.units is not None else ""
+        name = f" {self.entity.name} "
+
+        terminal.sendCommand(Terminal.SET_NORMAL)
+        terminal.sendText(name[:width])
+
+        if len(name) + len(state) > width:
+            row += 1
+            terminal.moveCursor(row, col)
+        else:
+            width -= len(name)
+
+        terminal.sendCommand(Terminal.SET_BOLD)
+        terminal.sendText(f" {state} "[:width])
+        terminal.sendCommand(Terminal.SET_NORMAL)
+
+    def calculate(self, terminal: Terminal, width: int) -> int:
+        state = "UNK" if self.entity.state is None else self.entity.state
+        state += f" {self.entity.units}" if self.entity.units is not None else ""
+        name = f" {self.entity.name} "
+
+        if len(name) + len(state) > width:
+            return 2
+        else:
+            return 1
 
 
 class Renderer:
@@ -260,6 +315,8 @@ class Renderer:
                     backing_entity = keyed_entities[entity]
                     if isinstance(backing_entity, SwitchEntity):
                         objlist.append(SwitchObject(backing_entity))
+                    elif isinstance(backing_entity, SensorEntity):
+                        objlist.append(SensorObject(backing_entity))
                     else:
                         objlist.append(Object(backing_entity))
 
@@ -353,16 +410,19 @@ class Renderer:
 
     def __renderPage(self, allDirty: bool) -> None:
         cols = 2 if self.terminal.columns == 80 else 3
-        curCol = -1
-        curRow = 5
+        curCol = cols - 1
+        curRow = 4
         maxDrawnRow = 4
 
-        maxHeight = 0
+        maxHeight = 1
         width = self.terminal.columns // cols
 
         self.terminal.sendCommand(Terminal.SET_NORMAL)
 
         for obj in self.objects[self.currentPage]:
+            # Calculate width/height of this object.
+            actualWidth = self.terminal.columns if obj.full else width
+
             # Calculate position for this object.
             curCol += 1
             if curCol >= cols:
@@ -370,25 +430,31 @@ class Renderer:
                 curRow += maxHeight
                 maxHeight = 0
                 if allDirty:
-                    self.terminal.moveCursor(curRow, 1)
-                    self.terminal.sendCommand(Terminal.CLEAR_LINE)
+                    # TODO: Technically this is somewhat broken, because we need to clear ALL
+                    # of the lines that the tallest component in any column occupies, but we
+                    # don't currently run into this bug so I'm leaving it as future work.
+                    for clearRow in range(
+                        curRow, curRow + obj.calculate(self.terminal, actualWidth)
+                    ):
+                        self.terminal.moveCursor(clearRow, 1)
+                        self.terminal.sendCommand(Terminal.CLEAR_LINE)
 
             if curCol != 0 and obj.full:
                 curCol = 0
                 curRow += maxHeight
                 maxHeight = 0
                 if allDirty:
-                    self.terminal.moveCursor(curRow, 1)
-                    self.terminal.sendCommand(Terminal.CLEAR_LINE)
-
-            # Calculate width/height of this object.
-            maxHeight = max(obj.height, maxHeight)
-            actualWidth = self.terminal.columns if obj.full else width
+                    for clearRow in range(
+                        curRow, curRow + obj.calculate(self.terminal, actualWidth)
+                    ):
+                        self.terminal.moveCursor(clearRow, 1)
+                        self.terminal.sendCommand(Terminal.CLEAR_LINE)
 
             # Calculate location of this object.
             row = curRow
             col = (width * curCol) + 1
 
+            maxHeight = max(obj.calculate(self.terminal, actualWidth), maxHeight)
             if allDirty or obj.dirty:
                 self.terminal.moveCursor(row, col)
                 obj.render(self.terminal, actualWidth)

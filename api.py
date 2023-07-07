@@ -40,6 +40,34 @@ class SwitchEntity(Entity):
         return f"SwitchEntity({self.entity_id!r}, {self.name!r}, {self.__state!r})"
 
 
+class SensorEntity(Entity):
+    def __init__(
+        self,
+        api: "HomeAssistant",
+        entity_id: str,
+        name: str,
+        units: Optional[str],
+        initial_state: Optional[str],
+    ) -> None:
+        super().__init__(api, entity_id)
+        self.name: str = name
+        self.units: Optional[str] = units
+        self.__state: Optional[str] = initial_state
+
+    def _merge(self, other: Entity) -> None:
+        if isinstance(other, SensorEntity):
+            self.name = other.name
+            self.units = other.units
+            self.__state = other.__state
+
+    @property
+    def state(self) -> Optional[str]:
+        return self.__state
+
+    def __repr__(self) -> str:
+        return f"SensorEntity({self.entity_id!r}, {self.name!r}, {self.units!r}, {self.__state!r})"
+
+
 class HomeAssistant:
     def __init__(self, uri: str, token: str) -> None:
         self.uri = uri + ("/" if uri[-1] != "/" else "")
@@ -72,6 +100,18 @@ class HomeAssistant:
                             entity_id,
                             name,
                             bool(entry.get("state", "off").lower() == "on"),
+                        )
+                    )
+                elif entity_id.startswith("sensor."):
+                    name = entry["attributes"].get("friendly_name", entity_id)
+                    units = entry["attributes"].get("unit_of_measurement", None)
+                    entities.append(
+                        SensorEntity(
+                            self,
+                            entity_id,
+                            name,
+                            units,
+                            entry.get("state"),
                         )
                     )
 
