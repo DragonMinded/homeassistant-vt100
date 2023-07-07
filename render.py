@@ -590,6 +590,20 @@ class Renderer:
                     self.terminal.sendText(self.input[spot:])
                     self.terminal.sendText(" ")
                     self.terminal.moveCursor(row, col)
+        elif inputVal == b">":
+            if self.currentPage < (len(self.pages) - 1):
+                self.currentPage += 1
+
+                self.terminal.sendCommand(Terminal.SAVE_CURSOR)
+                self.__renderTabs()
+                self.terminal.sendCommand(Terminal.RESTORE_CURSOR)
+        elif inputVal == b"<":
+            if self.currentPage > 0:
+                self.currentPage -= 1
+
+                self.terminal.sendCommand(Terminal.SAVE_CURSOR)
+                self.__renderTabs()
+                self.terminal.sendCommand(Terminal.RESTORE_CURSOR)
         elif inputVal == b"\r":
             # Ignore this.
             pass
