@@ -355,6 +355,7 @@ class Renderer:
         cols = 2 if self.terminal.columns == 80 else 3
         curCol = -1
         curRow = 5
+        maxDrawnRow = 4
 
         maxHeight = 0
         width = self.terminal.columns // cols
@@ -393,14 +394,15 @@ class Renderer:
                 obj.render(self.terminal, actualWidth)
                 obj.dirty = False
 
+                maxDrawnRow = max(maxDrawnRow, curRow + (maxHeight - 1))
+
             # Move to the end of the column if this was a full width object.
             if obj.full:
                 curCol = cols - 1
 
         if allDirty:
             # Need to wipe each row.
-            curRow += maxHeight
-            for row in range(curRow + 1 if curCol >= 0 else curRow, self.terminal.rows - 2):
+            for row in range(maxDrawnRow + 1, self.terminal.rows - 2):
                 self.terminal.moveCursor(row, 1)
                 self.terminal.sendCommand(Terminal.CLEAR_LINE)
 
