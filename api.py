@@ -114,6 +114,17 @@ class HomeAssistant:
                             entry.get("state"),
                         )
                     )
+                elif entity_id.startswith("binary_sensor."):
+                    name = entry["attributes"].get("friendly_name", entity_id)
+                    entities.append(
+                        SensorEntity(
+                            self,
+                            entity_id,
+                            name,
+                            None,
+                            entry.get("state").upper(),
+                        )
+                    )
 
             return entities
         except Exception as e:
