@@ -45,3 +45,36 @@ The name option allows you to customize the header with something unique to your
 The layout section allows you to specify dashboards and their contents. It is a very simple syntax that only allows for sequential listing of entities to be displayed. Each dashboard in the layout list includes the name of the dashboard which will be displayed in the tab section at the top. It also includes an entities list which allows you to add zero or more entities to that dashboard. The entities you list here should be valid Entity IDs as found in your Home Assistant setup. You can find these Entity IDs in the Settings->Devices and Services->Entities panel under the "Entity ID" column on your Home Assistant instance. Any switch, sensor or binary sensor entity type can be displayed on a panel.
 
 You can also provide a few virtual entity types in order to customize the layout slightly. The `<hr>` virtual entity causes a newline and horizontal rule to be displayed. This is handy for separating sections out. The `<label this is a caption>` virtual entity caues a new line and the text "this is a caption" to be displayed. This is handy for captioning separate sections or adding text descriptions to various parts of your dashboards. Note that you can include your own text instead of the above sample text, or you can include a blank `<label>` to add a blank line.
+
+## Example Config File
+
+```
+homeassistant:
+  url: https://my.homeassistant.url.com/
+  token: really-long-token-string-i-copied-from-home-assistant
+terminal:
+  port: /dev/ttyUSB0
+  baud: 9600
+general:
+  name: My Lovely Home Assistant Dashboard
+  show_help: True
+layout:
+  - name: Overview
+    entities:
+     - <label Environment>
+     - sensor.upstairs_temperature
+     - sensor.downstairs_temperature
+     - <hr>
+     - <label Power>
+     - sensor.watts_total
+  - name: Lights
+    entities:
+     - <label Upstairs>
+     - switch.bedroom_lights
+     - switch.office_lights
+     - <hr>
+     - <label Downstairs>
+     - switch.kitchen_lights
+     - switch.living_room_lights
+     - switch.entry_lights
+```
