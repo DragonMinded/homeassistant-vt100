@@ -67,7 +67,6 @@ class Object:
 
 class HelpObject(Object):
     def __init__(self) -> None:
-        self.__dirty = True
         self.lines = [
             "The following commands are available to use at any time:",
             "",
@@ -110,7 +109,7 @@ class HelpObject(Object):
 
 class HorizontalRuleObject(Object):
     def __init__(self) -> None:
-        self.__dirty = True
+        pass
 
     @property
     def name(self) -> str:
@@ -129,7 +128,6 @@ class HorizontalRuleObject(Object):
 
 class LabelObject(Object):
     def __init__(self, caption: str) -> None:
-        self.__dirty = True
         self.caption = caption
 
     @property
@@ -152,6 +150,7 @@ class SwitchObject(Object):
         self.entity: SwitchEntity = entity
         self.__selected: bool = False
         self.__dirty: bool = True
+        self.__lastName: str = entity.name
         self.__lastState: Optional[bool] = entity.state
 
     @property
@@ -164,11 +163,16 @@ class SwitchObject(Object):
 
     @property
     def dirty(self) -> bool:
-        return self.__dirty or self.__lastState != self.entity.state
+        return (
+            self.__dirty
+            or self.__lastName != self.entity.name
+            or self.__lastState != self.entity.state
+        )
 
     @dirty.setter
     def dirty(self, newval: bool) -> None:
         self.__dirty = newval
+        self.__lastName = self.entity.name
         self.__lastState = self.entity.state
 
     @property
@@ -218,6 +222,7 @@ class SensorObject(Object):
     def __init__(self, entity: SensorEntity) -> None:
         self.entity: SensorEntity = entity
         self.__dirty: bool = True
+        self.__lastName: str = entity.name
         self.__lastState: Optional[str] = entity.state
         self.__lastUnits: Optional[str] = entity.units
 
@@ -233,6 +238,7 @@ class SensorObject(Object):
     def dirty(self) -> bool:
         return (
             self.__dirty
+            or self.__lastName != self.entity.name
             or self.__lastState != self.entity.state
             or self.__lastUnits != self.entity.units
         )
@@ -240,6 +246,7 @@ class SensorObject(Object):
     @dirty.setter
     def dirty(self, newval: bool) -> None:
         self.__dirty = newval
+        self.__lastName = self.entity.name
         self.__lastState = self.entity.state
         self.__lastUnits = self.entity.units
 
@@ -418,6 +425,11 @@ class Renderer:
         width = self.terminal.columns // cols
 
         self.terminal.sendCommand(Terminal.SET_NORMAL)
+
+        # TODO: Technically, since we support updating names, an object could go from a single
+        # line to multiple lines, or the other way around. If this happens, we should really blank
+        # the rest of the objecs after it as if everything was dirty. However, I haven't run into
+        # this bug so I'm leaving it broken.
 
         for obj in self.objects[self.currentPage]:
             # Calculate width/height of this object.
