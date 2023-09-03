@@ -9,7 +9,7 @@ from api import HomeAssistant
 from config import Config
 from monitor import monitoring_thread
 from render import Renderer, SettingAction, ExitAction
-from vtpy import Terminal, TerminalException
+from vtpy import SerialTerminal, Terminal, TerminalException
 
 
 def spawnTerminal(port: str, baudrate: int) -> Terminal:
@@ -18,7 +18,7 @@ def spawnTerminal(port: str, baudrate: int) -> Terminal:
 
     while True:
         try:
-            terminal = Terminal(port, baudrate)
+            terminal = SerialTerminal(port, baudrate)
             print("SUCCESS!")
 
             break
