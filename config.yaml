@@ -7,9 +7,10 @@ homeassistant:
 terminal:
   port: /dev/ttyUSB0
   baud: 9600
+  flow: false
 general:
   name: Home Assistant Dashboard
-  show_help: False
+  show_help: false
 layout:
   - name: Tab 1
     entities:

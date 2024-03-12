@@ -32,6 +32,7 @@ class Config:
             terminal = yamlfile.get("terminal", {})
             self.terminal_port: str = terminal.get("port", "/dev/ttyUSB0")
             self.terminal_baud: int = int(terminal.get("baud", "9600"))
+            self.terminal_flow: bool = terminal.get("flow", False)
 
             # General configuration
             general = yamlfile.get("general", {})

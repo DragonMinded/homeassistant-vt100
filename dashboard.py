@@ -12,13 +12,13 @@ from render import Renderer, SettingAction, ExitAction
 from vtpy import SerialTerminal, Terminal, TerminalException
 
 
-def spawnTerminal(port: str, baudrate: int) -> Terminal:
+def spawnTerminal(port: str, baudrate: int, flow: bool) -> Terminal:
     print("Attempting to contact VT-100...", end="")
     sys.stdout.flush()
 
     while True:
         try:
-            terminal = SerialTerminal(port, baudrate)
+            terminal = SerialTerminal(port, baudrate, flowControl=flow)
             print("SUCCESS!")
 
             break
@@ -41,7 +41,7 @@ def main(config: Config) -> None:
     exiting = False
     while not exiting:
         hass = HomeAssistant(config.homeassistant_uri, config.homeassistant_token)
-        terminal = spawnTerminal(config.terminal_port, config.terminal_baud)
+        terminal = spawnTerminal(config.terminal_port, config.terminal_baud, config.terminal_flow)
         renderer = Renderer(
             config.dashboard_name or "Home Assistant Dashboard",
             config.layout,
