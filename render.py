@@ -305,7 +305,7 @@ class Renderer:
         self.cursorPos = 1
 
         # Set up tabs.
-        self.pages = pages
+        self.pages = pages[:]
         self.currentPage = 0
 
         # Set up tracking entities for each type of home assistant entity.
