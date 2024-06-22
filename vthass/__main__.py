@@ -5,11 +5,12 @@ import threading
 from multiprocessing import Process
 from typing import Optional
 
-from api import HomeAssistant
-from config import Config
-from monitor import monitoring_thread
-from render import Renderer, SettingAction, ExitAction
 from vtpy import SerialTerminal, Terminal, TerminalException
+
+from .api import HomeAssistant
+from .config import Config
+from .monitor import monitoring_thread
+from .render import Renderer, SettingAction, ExitAction
 
 
 def spawnTerminal(port: str, baudrate: int, flow: bool) -> Terminal:
@@ -112,7 +113,7 @@ def main(config: Config) -> None:
     terminal.reset()
 
 
-if __name__ == "__main__":
+def cli() -> None:
     parser = argparse.ArgumentParser(
         description="Dashboard frontend for Home Assistant that talks to VT-100 compatible terminals.",
     )
@@ -151,3 +152,7 @@ if __name__ == "__main__":
             t.join()
         except RuntimeError:
             pass
+
+
+if __name__ == "__main__":
+    cli()

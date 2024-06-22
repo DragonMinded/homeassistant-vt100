@@ -1,8 +1,9 @@
 from typing import Dict, List, Optional, Tuple
 
-from api import HomeAssistant, Entity, SwitchEntity, SensorEntity
-from config import Page
 from vtpy import Terminal
+
+from .api import HomeAssistant, Entity, SwitchEntity, SensorEntity
+from .config import Page
 
 
 class Action:

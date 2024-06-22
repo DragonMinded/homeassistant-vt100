@@ -4,19 +4,25 @@ A simple VT-100 frontend for Home Assistant, to be run with an actual VT-100 (or
 
 ## How To Run This
 
-First, make sure your dependencies are set up:
+If you are non-technical, or you just want to try it out without tinkering, I recommend using `pipx` to install this frontend. For help and instruction on setting up `pipx` on your computer, visit [pipx's installation page](https://pipx.pypa.io/stable/installation/). If you have `pipx` installed already, run the following line to install homeassistant-vt100 on your computer.
 
 ```
-python3 -m pip install -r requirements.txt --upgrade
+pipx install git+https://github.com/DragonMinded/homeassistant-vt100.git
 ```
 
-Then, run it like the following:
+Once that completes, run this frontend by typing the following line:
 
 ```
-python3 dashboard.py --config config.yaml
+homeassistant-vt100 --config config.yaml
 ```
 
-Don't forget to edit your config file to customize it for your own setup!
+You can also run with `--help`, like the following example, to see all options:
+
+```
+homeassistant-vt100 --help
+```
+
+Note that original VT-100 terminals, and variants such as the 101 and 102, need the XON/XOFF flow control option enabled. Make sure you enable flow control on the terminal itself, and then set the `flow` option in the config to true to avoid overloading the terminal. Newer terminals such as mid-80s VT-100 clones often do not suffer from this problem and keep up just fine. Don't forget to edit your config file to customize it for your own setup!
 
 ## Navigation and Interaction
 
@@ -77,4 +83,25 @@ layout:
      - switch.kitchen_lights
      - switch.living_room_lights
      - switch.entry_lights
+```
+
+## Development
+
+To get started, first install the requirements using a command similar to:
+
+```
+python3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements-dev.txt
+```
+
+Then, you can run the application similar to:
+
+```
+python3 homeassistant-vt100 --config config.yaml
+```
+
+You can also run with `--help`, like the following example, to see all options:
+
+```
+python3 homeassistant-vt100 --help
 ```

@@ -1,9 +1,4 @@
 vtpy @ git+https://github.com/DragonMinded/vtpy.git
 requests
-types-requests
 pyyaml
-types-pyyaml
 flask
-mypy
-flake8
-black
