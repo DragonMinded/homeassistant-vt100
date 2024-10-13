@@ -2,8 +2,28 @@ import yaml
 from typing import List, Optional
 
 
+class Entity:
+    def __init__(self, entity_id: str, name: Optional[str], units: Optional[str]) -> None:
+        if entity_id[:3] == "<hr" and entity_id[-1:] == ">":
+            self.entity_id = "<hr>"
+            self.name = None
+            self.units = None
+        elif entity_id[:6] == "<label" and entity_id[-1:] == ">":
+            self.entity_id = "<label>"
+            self.name = entity_id[6:-1].strip() or name
+            self.units = None
+        elif entity_id[:9] == "<template" and entity_id[-1:] == ">":
+            self.entity_id = "<template>"
+            self.name = entity_id[9:-1].strip() or name
+            self.units = None
+        else:
+            self.entity_id = entity_id
+            self.name = name
+            self.units = units
+
+
 class Page:
-    def __init__(self, name: str, entities: List[str]) -> None:
+    def __init__(self, name: str, entities: List[Entity]) -> None:
         self.name = name
         self.entities = entities
 
@@ -48,6 +68,14 @@ class Config:
                 page = Page(name, [])
 
                 for entity in entry.get("entities") or []:
-                    page.entities.append(entity)
+                    if isinstance(entity, str):
+                        # Raw entity list.
+                        page.entities.append(Entity(entity, None, None))
+                    elif isinstance(entity, dict):
+                        # Entity description.
+                        entity_id = entity.get("entity", "__invalid__")
+                        entity_name = entity.get("name", None)
+                        entity_units = entity.get("units", None)
+                        page.entities.append(Entity(entity_id, entity_name, entity_units))
 
                 self.layout.append(page)

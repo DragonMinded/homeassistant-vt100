@@ -52,6 +52,26 @@ The layout section allows you to specify dashboards and their contents. It is a 
 
 You can also provide a few virtual entity types in order to customize the layout slightly. The `<hr>` virtual entity causes a newline and horizontal rule to be displayed. This is handy for separating sections out. The `<label this is a caption>` virtual entity caues a new line and the text "this is a caption" to be displayed. This is handy for captioning separate sections or adding text descriptions to various parts of your dashboards. Note that you can include your own text instead of the above sample text, or you can include a blank `<label>` to add a blank line.
 
+If you want to override the displayed name, or in the case of sensors override the displayed units, you can do so with an extended entity format. Normally, you would just list the entity IDs under entities. However, you can instead include an entity object that includes the `entity` key with the ID that you would have provided, a `name` key with the overridden name, and a `units` key with the overridden units. Each field is optional, except the `entity`. For example, if you had the following layout.
+
+```
+layout:
+ - name: Example
+   entities:
+     sensor.example
+```
+
+You could instead write it as such, with overridden values for display:
+
+```
+layout:
+ - name: Example
+   entities:
+    - entity: sensor.example
+      name: Overridden Name
+      units: Overriden Units
+```
+
 ## Example Config File
 
 ```

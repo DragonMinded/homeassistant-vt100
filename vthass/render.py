@@ -21,13 +21,14 @@ class SettingAction(Action):
 
 
 class Object:
-    def __init__(self, entity: Entity) -> None:
+    def __init__(self, entity: Entity, overridden_name: Optional[str]) -> None:
         self.entity: Entity = entity
+        self.__overridden_name: Optional[str] = overridden_name
         self.__dirty = True
 
     @property
     def name(self) -> str:
-        return self.entity.entity_id
+        return self.__overridden_name or self.entity.entity_id
 
     @property
     def full(self) -> bool:
@@ -146,9 +147,31 @@ class LabelObject(Object):
         return 1
 
 
+class TemplateObject(Object):
+    def __init__(self, template: str) -> None:
+        self.template = template
+
+    @property
+    def name(self) -> str:
+        return "template_virtual_object"
+
+    @property
+    def full(self) -> bool:
+        return False
+
+    def render(self, terminal: Terminal, width: int) -> None:
+        # TODO: Actually substitute template values for remote API calls.
+        template = self.template
+        terminal.sendText(template[:width])
+
+    def calculate(self, terminal: Terminal, width: int) -> int:
+        return 1
+
+
 class SwitchObject(Object):
-    def __init__(self, entity: SwitchEntity) -> None:
+    def __init__(self, entity: SwitchEntity, overridden_name: Optional[str]) -> None:
         self.entity: SwitchEntity = entity
+        self.__overridden_name: Optional[str] = overridden_name
         self.__selected: bool = False
         self.__dirty: bool = True
         self.__lastName: str = entity.name
@@ -156,7 +179,7 @@ class SwitchObject(Object):
 
     @property
     def name(self) -> str:
-        return self.entity.name
+        return self.__overridden_name or self.entity.name
 
     @property
     def full(self) -> bool:
@@ -166,14 +189,14 @@ class SwitchObject(Object):
     def dirty(self) -> bool:
         return (
             self.__dirty
-            or self.__lastName != self.entity.name
+            or self.__lastName != self.name
             or self.__lastState != self.entity.state
         )
 
     @dirty.setter
     def dirty(self, newval: bool) -> None:
         self.__dirty = newval
-        self.__lastName = self.entity.name
+        self.__lastName = self.name
         self.__lastState = self.entity.state
 
     @property
@@ -212,7 +235,7 @@ class SwitchObject(Object):
         selopen = "[" if self.__selected else " "
         selclose = "]" if self.__selected else " "
 
-        text = (f"{selopen}{self.entity.name}{selclose}")[:width]
+        text = (f"{selopen}{self.name}{selclose}")[:width]
         terminal.sendText(text)
 
     def calculate(self, terminal: Terminal, width: int) -> int:
@@ -220,8 +243,10 @@ class SwitchObject(Object):
 
 
 class SensorObject(Object):
-    def __init__(self, entity: SensorEntity) -> None:
+    def __init__(self, entity: SensorEntity, overridden_name: Optional[str], overridden_units: Optional[str]) -> None:
         self.entity: SensorEntity = entity
+        self.__overridden_name: Optional[str] = overridden_name
+        self.__overridden_units: Optional[str] = overridden_units
         self.__dirty: bool = True
         self.__lastName: str = entity.name
         self.__lastState: Optional[str] = entity.state
@@ -229,7 +254,11 @@ class SensorObject(Object):
 
     @property
     def name(self) -> str:
-        return self.entity.name
+        return self.__overridden_name or self.entity.name
+
+    @property
+    def units(self) -> Optional[str]:
+        return self.__overridden_units or self.entity.units
 
     @property
     def full(self) -> bool:
@@ -239,24 +268,24 @@ class SensorObject(Object):
     def dirty(self) -> bool:
         return (
             self.__dirty
-            or self.__lastName != self.entity.name
+            or self.__lastName != self.name
             or self.__lastState != self.entity.state
-            or self.__lastUnits != self.entity.units
+            or self.__lastUnits != self.units
         )
 
     @dirty.setter
     def dirty(self, newval: bool) -> None:
         self.__dirty = newval
-        self.__lastName = self.entity.name
+        self.__lastName = self.name
         self.__lastState = self.entity.state
-        self.__lastUnits = self.entity.units
+        self.__lastUnits = self.units
 
     def render(self, terminal: Terminal, width: int) -> None:
         row, col = terminal.fetchCursor()
 
         state = "UNK" if self.entity.state is None else self.entity.state
-        state += f" {self.entity.units}" if self.entity.units is not None else ""
-        name = f" {self.entity.name} "
+        state += f" {self.units}" if self.units else ""
+        name = f" {self.name} "
 
         terminal.sendCommand(Terminal.SET_NORMAL)
         terminal.sendText(name[:width])
@@ -273,8 +302,8 @@ class SensorObject(Object):
 
     def calculate(self, terminal: Terminal, width: int) -> int:
         state = "UNK" if self.entity.state is None else self.entity.state
-        state += f" {self.entity.units}" if self.entity.units is not None else ""
-        name = f" {self.entity.name} "
+        state += f" {self.units}" if self.units else ""
+        name = f" {self.name} "
 
         if len(name) + len(state) > width:
             return 2
@@ -316,18 +345,20 @@ class Renderer:
         for page in pages:
             objlist: List[Object] = []
             for entity in page.entities:
-                if entity == "<hr>":
+                if entity.entity_id == "<hr>":
                     objlist.append(HorizontalRuleObject())
-                elif entity[:6] == "<label" and entity[-1:] == ">":
-                    objlist.append(LabelObject(entity[6:-1].strip()))
-                elif entity in keyed_entities:
-                    backing_entity = keyed_entities[entity]
+                elif entity.entity_id == "<label>":
+                    objlist.append(LabelObject(entity.name or ""))
+                elif entity.entity_id == "<template>":
+                    objlist.append(TemplateObject(entity.name or ""))
+                elif entity.entity_id in keyed_entities:
+                    backing_entity = keyed_entities[entity.entity_id]
                     if isinstance(backing_entity, SwitchEntity):
-                        objlist.append(SwitchObject(backing_entity))
+                        objlist.append(SwitchObject(backing_entity, overridden_name=entity.name))
                     elif isinstance(backing_entity, SensorEntity):
-                        objlist.append(SensorObject(backing_entity))
+                        objlist.append(SensorObject(backing_entity, overridden_name=entity.name, overridden_units=entity.units))
                     else:
-                        objlist.append(Object(backing_entity))
+                        objlist.append(Object(backing_entity, overridden_name=entity.name))
 
             for o in objlist:
                 if o.selectable:

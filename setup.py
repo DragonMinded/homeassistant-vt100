@@ -3,7 +3,7 @@ from distutils.core import setup
 
 setup(
     name="homeassistant-vt100",
-    version="1.0.0",
+    version="1.1.0",
     description="VT-100 Home Assistant Frontend",
     author="DragonMinded",
     license="Public Domain",
